@@ -1,0 +1,62 @@
+# .NET Core / ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.vs/
+.vscode/
+# Rider
+.idea/
+*.sln.iml
+# Visual Studio Code
+.vscode/
+# Build Results
+[Dd]ebug*/
+[Rr]elease*/
+# NuGet Packages
+*.nupkg
+# NPM Packages
+node_modules/
+# Others
+*.log
+*.DS_Store
+*.db
+*.pdb
+*.cache
+*.config
+*.TestResults/
+TestResults/
+*.vspscc
+*.vssscc
+*.tmp
+*.bak
+*.swp
+*.swo
+*.orig
+# DotCover
+*.dotCover
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+# Dotnet generated files
+project.lock.json
+project.fragment.lock.json
+artifacts/
+# Azure Pipelines
+*.azure-pipelines.yml
+# Local History for Visual Studio
+.localhistory/
+# IIS Express
+/.vs/
+/.vscode/
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+# Publish Web Output
+publish/
+# Docker
+Dockerfile*
+.dockerignore
+# Static files
+wwwroot/
