@@ -2,38 +2,26 @@ using Microsoft.AspNetCore.HttpLogging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHttpLogging(logging =>
-{
-    logging.LoggingFields = HttpLoggingFields.RequestMethod
-                            | HttpLoggingFields.RequestPath
-                            | HttpLoggingFields.RequestHeaders
-                            | HttpLoggingFields.RequestBody
-                            | HttpLoggingFields.ResponseStatusCode
-                            | HttpLoggingFields.ResponseHeaders
-                            | HttpLoggingFields.ResponseBody;
-
-    // Optional: limit body size to avoid huge logs
-    logging.RequestBodyLogLimit = 4096; // 4 KB
-    logging.ResponseBodyLogLimit = 4096;
-
-    // Optional: redact sensitive headers
-    logging.MediaTypeOptions.AddText("application/json");
-    logging.RequestHeaders.Add("Authorization");
-});
-
 var app = builder.Build();
 
-app.UseHttpLogging();
-
-// Custom logging middleware
+// Error-handling middleware: catches unhandled exceptions and returns JSON error response
 app.Use(async (context, next) =>
 {
-    var logger = app.Logger;
-    logger.LogInformation($"Request: {context.Request.Method} {context.Request.Path}");
-    await next();
-    logger.LogInformation($"Response: {context.Response.StatusCode}");
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        var errorResponse = System.Text.Json.JsonSerializer.Serialize(new { error = "Internal server error." });
+        await context.Response.WriteAsync(errorResponse);
+        // Optional: log the exception
+        var logger = app.Logger;
+        logger.LogError(ex, "Unhandled exception occurred.");
+    }
 });
-
 
 // Simple authentication middleware for /users endpoints
 app.Use(async (context, next) =>
@@ -50,6 +38,37 @@ app.Use(async (context, next) =>
         }
     }
     await next();
+});
+
+// Enhanced logging middleware: logs method, path, status, and bodies (for text-based content)
+app.Use(async (context, next) =>
+{
+    var logger = app.Logger;
+    context.Request.EnableBuffering();
+    string requestBody = string.Empty;
+    if (context.Request.ContentLength > 0 &&
+        (context.Request.ContentType?.Contains("application/json") == true ||
+         context.Request.ContentType?.Contains("text/") == true))
+    {
+        using var reader = new StreamReader(context.Request.Body, leaveOpen: true);
+        requestBody = await reader.ReadToEndAsync();
+        context.Request.Body.Position = 0;
+    }
+    logger.LogInformation($"Request: {context.Request.Method} {context.Request.Path} | Body: {requestBody}");
+
+    var originalBodyStream = context.Response.Body;
+    using var responseBody = new MemoryStream();
+    context.Response.Body = responseBody;
+
+    await next();
+
+    context.Response.Body.Seek(0, SeekOrigin.Begin);
+    string responseText = await new StreamReader(context.Response.Body).ReadToEndAsync();
+    context.Response.Body.Seek(0, SeekOrigin.Begin);
+
+    logger.LogInformation($"Response: {context.Response.StatusCode} | Body: {responseText}");
+
+    await responseBody.CopyToAsync(originalBodyStream);
 });
 
 app.UseHttpsRedirection();
@@ -73,7 +92,6 @@ app.MapGet("/users/{id}", (int id) =>
     return user is not null ? Results.Ok(user) : Results.NotFound();
 });
 
-
 app.MapPost("/users", (User user) =>
 {
     var validation = UserValidator.ValidateUser(user);
@@ -83,7 +101,6 @@ app.MapPost("/users", (User user) =>
     users.Add(user);
     return Results.Created($"/users/{user.Id}", user);
 });
-
 
 app.MapPut("/users/{id}", (int id, User updatedUser) =>
 {
